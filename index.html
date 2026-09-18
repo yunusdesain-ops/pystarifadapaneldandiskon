@@ -562,6 +562,34 @@ body{font-size:14px;color:var(--ink)}
   }
 }
 </style>
+
+<style id="shipment-delete-menu">
+.ship-more{
+  width:40px;height:40px;border:1px solid #d8e2ef;border-radius:12px;
+  background:#eef4fb;color:#335679;display:inline-flex;align-items:center;
+  justify-content:center;cursor:pointer;padding:0;transition:.15s ease;
+}
+.ship-more:active{transform:scale(.96)}
+.ship-more svg{width:18px;height:18px}
+.shipment-menu{
+  position:absolute;right:0;top:calc(100% + 6px);z-index:30;
+  min-width:165px;padding:6px;background:#fff;border:1px solid #e2e8f0;
+  border-radius:14px;box-shadow:0 12px 28px rgba(15,23,42,.16);
+  display:none;
+}
+.shipment-menu.open{display:block}
+.delete-menu-btn{
+  width:100%;display:flex;align-items:center;gap:9px;border:0;background:transparent;
+  padding:11px 12px;border-radius:10px;color:#b42318;font-size:13px;font-weight:850;
+  text-align:left;cursor:pointer;
+}
+.delete-menu-btn:hover{background:#fff1f1}
+.delete-menu-btn svg{width:17px;height:17px;flex:0 0 auto}
+@media(max-width:520px){
+  .ship-more{width:40px;height:40px}
+  .shipment-menu{min-width:165px}
+}
+</style>
 </head>
 
 <body>
@@ -690,6 +718,7 @@ let data = [];
 let selectedBranch = "";
 // Simpan status buka/tutup card agar render() tidak otomatis me-minimize kembali.
 const expandedShipments = new Set();
+const deletingShipments = new Set();
 
 function todayKey(){
   const d = new Date();
@@ -705,9 +734,6 @@ function uid(){
 }
 function save(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  if(window.__firebaseSaveData && !window.__firebaseHydrating){
-    try{ window.__firebaseSaveData(data); }catch(e){ console.error("Firebase sync request failed:",e); }
-  }
 }
 function toast(msg){
   const t=document.getElementById("toast");
@@ -747,7 +773,7 @@ save();
 function dayData(){
   const date=document.getElementById("datePicker").value||todayKey();
   return data
-    .filter(x=>x.date===date)
+    .filter(x=>x.date===date && !deletingShipments.has(x.id))
     .sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
 }
 
@@ -813,13 +839,27 @@ function render(){
             <span class="name-capsule">${esc(x.code || "Tanpa nama")}</span>
             ${x.note?`<div class="ship-code">${esc(x.note)}</div>`:""}
           </div>
-          <div style="display:flex;align-items:center;gap:7px">
+          <div style="display:flex;align-items:center;gap:7px;position:relative">
             <span class="status ${st[1]}">${st[0]}</span>
+            <button type="button" class="ship-more" aria-label="Menu kiriman"
+                    onclick="event.preventDefault();event.stopPropagation();toggleShipmentMenu('${x.id}',this)">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/>
+              </svg>
+            </button>
             <span class="ship-chevron" aria-label="Buka/tutup">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                 <path d="m6 9 6 6 6-6"/>
               </svg>
             </span>
+            <div class="shipment-menu" id="shipment-menu-${x.id}" onclick="event.stopPropagation()">
+              <button type="button" class="delete-menu-btn" onclick="deleteShipment(event,'${x.id}')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
+                </svg>
+                Hapus kiriman
+              </button>
+            </div>
           </div>
         </div>
 
@@ -973,10 +1013,12 @@ window.takePhoto=async function(event,id,type){
     const photo=await compressImage(file);
     const x=data.find(a=>a.id===id);
     if(!x)return;
-    if(type==="cabang")x.photoCabang=photo;
-    else if(type==="terima")x.photoTerimaBjm=photo;
-    else x.photoBjm=photo;
+    const field=type==="cabang"?"photoCabang":(type==="terima"?"photoTerimaBjm":"photoBjm");
+    x[field]=photo;
     save();render();
+    if(window.__firebaseUploadPhotoAndPatch){
+      await window.__firebaseUploadPhotoAndPatch(id,type,photo);
+    }
     toast(type==="cabang"?"Foto cabang tersimpan":type==="terima"?"Foto penerimaan tersimpan":"Foto BJM → PRN tersimpan");
   }catch(e){
     console.error(e);toast("Foto gagal diproses");
@@ -1006,6 +1048,7 @@ window.toggleCheck=function(id,type,value){
   if(!x)return;
   x[type]=value;
   save();render();
+  if(window.__firebasePatchItem){ window.__firebasePatchItem(id,{[type]:!!value}); }
   toast(value?(type==="received"?"TERIMA dicentang":"KIRIM PRN dicentang"):"Checklist dibatalkan");
 };
 
@@ -1061,6 +1104,9 @@ document.getElementById("saveBtn").onclick=()=>{
     createdAt:Date.now()
   });
   save();
+  if(window.__firebaseSaveData){
+    try{ window.__firebaseSaveData(data); }catch(e){ console.error("Firebase sync request failed:",e); }
+  }
 
   document.getElementById("datePicker").value=date;
   selectedBranch=branch;
@@ -1072,17 +1118,68 @@ document.getElementById("saveBtn").onclick=()=>{
 render();
 </script>
 
+
+<script>
+window.toggleShipmentMenu=function(id,btn){
+  event.stopPropagation();
+  document.querySelectorAll('.shipment-menu.open').forEach(m=>{
+    if(m.id!=='shipment-menu-'+id) m.classList.remove('open');
+  });
+  const menu=document.getElementById('shipment-menu-'+id);
+  if(menu) menu.classList.toggle('open');
+};
+
+window.deleteShipment=async function(evt,id){
+  evt?.preventDefault?.();
+  evt?.stopPropagation?.();
+
+  const x=data.find(a=>a.id===id);
+  if(!x) return;
+
+  const name=x.code || 'kiriman ini';
+  const ok=confirm('Hapus '+name+'?\\n\\nData checklist dan foto kiriman ini akan dihapus permanen.');
+  if(!ok) return;
+
+  deletingShipments.add(id);
+  data=data.filter(a=>a.id!==id);
+  expandedShipments.delete(id);
+  save();
+  render();
+
+  try{
+    if(window.__firebaseDeleteItem){
+      await window.__firebaseDeleteItem(id);
+    }
+    toast('Kiriman berhasil dihapus');
+  }catch(err){
+    console.error('Delete shipment failed:',err);
+    deletingShipments.delete(id);
+    data.push(x);
+    data.sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+    save();
+    render();
+    toast('Gagal menghapus dari Firebase');
+  }finally{
+    setTimeout(()=>deletingShipments.delete(id),1500);
+    document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
+  }
+};
+
+document.addEventListener('click',()=>{
+  document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
+});
+</script>
+
 <script type="module">
 /* =============================================================
-   FIREBASE REALTIME + STORAGE
-   - Uses the existing Firebase project from index(7).html.
-   - Uses a separate RTDB path so the existing PNRL monitor data is untouched.
-   - Checklist metadata/status -> Realtime Database.
-   - Photos -> Firebase Storage; only download URLs are stored in RTDB.
-   ============================================================= */
+   FIREBASE REALTIME + STORAGE — FIXED SYNC
+   Same Firebase project as index(7).html.
+   Each shipment is stored independently at /items/{id} so one
+   device does not overwrite another device's checklist changes.
+============================================================= */
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
-import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-storage.js";
+import { getDatabase, ref, onValue, set, update, remove, get } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
+import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-storage.js";
 
 (async function initChecklistFirebase(){
   const config={
@@ -1097,145 +1194,157 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "htt
   };
 
   const DB_PATH='pnrlChecklistPrn/data';
-  let db=null, storage=null, applyingRemote=false, firstSnapshot=true;
-  let syncRequested=false, syncRunning=false;
-  const connectedLabel=(online)=>{
-    const body=document.body;
-    body.classList.toggle('firebase-online',!!online);
-    body.classList.toggle('firebase-offline',!online);
+  const ITEMS_PATH=DB_PATH+'/items';
+  let db=null, storage=null;
+  let hydrating=false;
+
+  function setOnlineUI(online,msg){
+    document.body.classList.toggle('firebase-online',!!online);
+    document.body.classList.toggle('firebase-offline',!online);
+    const status=document.getElementById('liveSyncStatus');
+    if(status){
+      status.classList.toggle('on',!!online);
+      status.classList.toggle('off',!online);
+      const t=status.querySelector('span:last-child');
+      if(t) t.textContent=msg || (online?'Live Sync tersambung':'Menunggu koneksi');
+    }
+    const dash=document.getElementById('dashSyncText');
+    if(dash) dash.textContent=msg || (online?'Live Sync tersambung':'Menunggu koneksi');
+  }
+
+  function cleanItem(x){
+    return {
+      id:x.id||uid(), date:x.date||todayKey(), branch:x.branch||'PBK', code:x.code||'', note:x.note||'',
+      received:!!x.received, sent:!!x.sent,
+      photoCabang:x.photoCabang||'', photoTerimaBjm:x.photoTerimaBjm||'', photoBjm:x.photoBjm||'',
+      createdAt:Number(x.createdAt)||Date.now()
+    };
+  }
+
+  function remoteToArray(root){
+    const raw=root?.items;
+    if(Array.isArray(raw)) return raw.map(cleanItem);
+    if(raw && typeof raw==='object') return Object.values(raw).map(cleanItem);
+    return [];
+  }
+
+  async function patchItem(id,patch){
+    if(!db) throw new Error('Firebase belum siap');
+    await update(ref(db,ITEMS_PATH+'/'+id),patch);
+    setOnlineUI(true,'Live Sync tersambung');
+  }
+
+  window.__firebasePatchItem=async function(id,patch){
+    try{ await patchItem(id,patch); }
+    catch(err){ console.error('Firebase checklist update:',err); setOnlineUI(false,'Gagal sinkron checklist'); }
   };
 
-  function showSyncToast(text){
-    if(typeof window.toast==='function') window.toast(text);
-  }
-
-  function isDataUrl(v){ return typeof v==='string' && v.startsWith('data:image/'); }
-
-  async function uploadPhotoIfNeeded(item,type){
-    const field=type==='cabang'?'photoCabang':(type==='terima'?'photoTerimaBjm':'photoBjm');
-    const value=item[field]||'';
-    if(!isDataUrl(value)) return value;
-    const path=`checklist_prn/${item.date||'unknown'}/${item.id||'unknown'}/${type}.jpg`;
-    const sref=storageRef(storage,path);
-    await uploadString(sref,value,'data_url',{contentType:'image/jpeg',cacheControl:'public,max-age=31536000'});
-    return await getDownloadURL(sref);
-  }
-
-  async function prepareForFirebase(source){
-    const next=Array.isArray(source)?source.map(x=>({...x})):[];
-    for(const item of next){
-      for(const type of ['cabang','terima','bjm']){
-        const field=type==='cabang'?'photoCabang':(type==='terima'?'photoTerimaBjm':'photoBjm');
-        if(isDataUrl(item[field])) item[field]=await uploadPhotoIfNeeded(item,type);
-      }
+  window.__firebaseDeleteItem=async function(id){
+    if(!db){
+      throw new Error('Firebase belum siap');
     }
-    return next;
-  }
 
-  async function flushSync(){
-    if(syncRunning || !db || !storage) return;
-    syncRunning=true;
+    const itemRef=ref(db,ITEMS_PATH+'/'+id);
+
     try{
-      while(syncRequested){
-        syncRequested=false;
-        const prepared=await prepareForFirebase(data);
-        // Replace local data with Storage URLs after successful uploads.
-        let changed=false;
-        if(JSON.stringify(prepared)!==JSON.stringify(data)){
-          data=prepared;
-          localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
-          changed=true;
-          try{render();}catch(e){}
-        }
-        await set(ref(db,DB_PATH),{
-          items:prepared,
-          updatedAt:Date.now()
-        });
-        connectedLabel(true);
-        if(changed) showSyncToast('Foto tersimpan online');
-      }
-    }catch(err){
-      console.error('Firebase sync error:',err);
-      connectedLabel(false);
-      showSyncToast('Firebase gagal menyimpan, data lokal tetap tersimpan');
-    }finally{
-      syncRunning=false;
-      if(syncRequested) flushSync();
-    }
-  }
+      // Primary delete.
+      await remove(itemRef);
 
-  window.__firebaseSaveData=function(){
-    if(applyingRemote) return;
-    syncRequested=true;
-    flushSync();
+      // Verify the node is really gone. This also catches rules/path problems.
+      let verify=await get(itemRef);
+      if(verify.exists()){
+        // Fallback: explicit null write.
+        await set(itemRef,null);
+        verify=await get(itemRef);
+      }
+
+      if(verify.exists()){
+        throw new Error('Data masih ada di Firebase setelah penghapusan');
+      }
+
+      // Clean the three possible photo objects. Missing files are harmless.
+      if(storage){
+        for(const type of ['cabang','terima','bjm']){
+          try{
+            await deleteObject(storageRef(storage,`checklist_prn/${id}/${type}.jpg`));
+          }catch(photoErr){
+            console.debug('Storage delete skipped:', photoErr?.code || photoErr);
+          }
+        }
+      }
+
+      setOnlineUI(true,'Kiriman terhapus dari server');
+    }catch(err){
+      console.error('Firebase delete error:',err);
+      setOnlineUI(false,'Gagal menghapus dari Firebase');
+      throw err;
+    }
+  };
+
+  window.__firebaseUploadPhotoAndPatch=async function(id,type,dataUrl){
+    if(!db || !storage) throw new Error('Firebase belum siap');
+    const field=type==='cabang'?'photoCabang':(type==='terima'?'photoTerimaBjm':'photoBjm');
+    const storagePath=`checklist_prn/${id}/${type}.jpg`;
+    const sref=storageRef(storage,storagePath);
+    await uploadString(sref,dataUrl,'data_url',{contentType:'image/jpeg',cacheControl:'public,max-age=31536000'});
+    const url=await getDownloadURL(sref);
+    const local=data.find(x=>x.id===id);
+    if(local){ local[field]=url; localStorage.setItem(STORAGE_KEY,JSON.stringify(data)); render(); }
+    await patchItem(id,{[field]:url});
+    setOnlineUI(true,'Foto tersimpan online');
+  };
+
+  window.__firebaseSaveData=async function(nextData){
+    if(!db || hydrating) return;
+    try{
+      const arr=Array.isArray(nextData)?nextData.map(cleanItem):[];
+      for(const item of arr) await set(ref(db,ITEMS_PATH+'/'+item.id),item);
+      setOnlineUI(true,'Live Sync tersambung');
+    }catch(err){
+      console.error('Firebase full sync:',err);
+      setOnlineUI(false,'Gagal menyimpan ke Firebase');
+    }
   };
 
   try{
     const app=getApps().length ? getApps()[0] : initializeApp(config);
-    db=getDatabase(app);
-    storage=getStorage(app);
+    db=getDatabase(app); storage=getStorage(app);
 
-    onValue(ref(db,'.info/connected'),snap=>connectedLabel(!!snap.val()));
+    onValue(ref(db,'.info/connected'),snap=>{
+      setOnlineUI(!!snap.val(),snap.val()?'Live Sync tersambung':'Menunggu koneksi');
+    });
 
-    onValue(ref(db,DB_PATH),snapshot=>{
-      const remote=snapshot.val();
-      if(firstSnapshot){
-        firstSnapshot=false;
-        if(remote && Array.isArray(remote.items)){
-          applyingRemote=true;
-          data=remote.items.map(x=>({
-            id:x.id||uid(),
-            date:x.date||todayKey(),
-            branch:x.branch||'PBK',
-            code:x.code||'',
-            note:x.note||'',
-            received:!!x.received,
-            sent:!!x.sent,
-            photoCabang:x.photoCabang||'',
-            photoTerimaBjm:x.photoTerimaBjm||'',
-            photoBjm:x.photoBjm||'',
-            createdAt:Number(x.createdAt)||Date.now()
-          }));
-          localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
-          applyingRemote=false;
-          try{render();}catch(e){}
-          showSyncToast('Data Firebase tersambung');
-        }else if(Array.isArray(data) && data.length){
-          syncRequested=true;
-          flushSync();
+    onValue(ref(db,DB_PATH),async snapshot=>{
+      const root=snapshot.val();
+      const remote=remoteToArray(root);
+
+      // One-time migration from the previous /items array format.
+      if(Array.isArray(root?.items)){
+        if(remote.length){
+          for(const item of remote) await set(ref(db,ITEMS_PATH+'/'+item.id),item);
         }
         return;
       }
 
-      if(remote && Array.isArray(remote.items)){
-        // Ignore our own echo while a write is in progress; subsequent remote
-        // changes from another device will still refresh this screen.
-        if(syncRunning) return;
-        applyingRemote=true;
-        data=remote.items.map(x=>({
-          id:x.id||uid(),
-          date:x.date||todayKey(),
-          branch:x.branch||'PBK',
-          code:x.code||'',
-          note:x.note||'',
-          received:!!x.received,
-          sent:!!x.sent,
-          photoCabang:x.photoCabang||'',
-          photoTerimaBjm:x.photoTerimaBjm||'',
-          photoBjm:x.photoBjm||'',
-          createdAt:Number(x.createdAt)||Date.now()
-        }));
-        localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
-        applyingRemote=false;
-        try{render();}catch(e){}
-      }
+      hydrating=true;
+      data=remote;
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+      hydrating=false;
+      try{render();}catch(e){console.error(e)}
+      setOnlineUI(true,'Data realtime tersinkron');
     });
 
-    connectedLabel(true);
+    // Push existing local-only data once when the new structure is empty.
+    setTimeout(async()=>{
+      try{
+        const local=Array.isArray(data)?data:[];
+        const snap=await new Promise(resolve=>onValue(ref(db,ITEMS_PATH),resolve,{onlyOnce:true}));
+        if(!snap.val() && local.length) await window.__firebaseSaveData(local);
+      }catch(err){ console.error('Initial Firebase sync:',err); }
+    },800);
   }catch(err){
     console.error('Firebase init error:',err);
-    connectedLabel(false);
-    showSyncToast('Firebase belum tersambung, mode lokal aktif');
+    setOnlineUI(false,'Mode lokal');
   }
 })();
 </script>
