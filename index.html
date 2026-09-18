@@ -590,6 +590,36 @@ body{font-size:14px;color:var(--ink)}
   .shipment-menu{min-width:165px}
 }
 </style>
+
+<style id="menu-overlay-fix">
+/* Menu 3-titik harus keluar dari batas kartu, bukan terpotong. */
+.shipment{
+  overflow:visible!important;
+  position:relative!important;
+}
+.shipment.menu-open{
+  z-index:1000!important;
+}
+.shipment-menu{
+  z-index:9999!important;
+  right:0!important;
+  top:calc(100% + 7px)!important;
+  min-width:185px!important;
+  padding:7px!important;
+  border:1px solid #d9e2ef!important;
+  border-radius:15px!important;
+  background:#fff!important;
+  box-shadow:0 16px 34px rgba(15,23,42,.20),0 3px 8px rgba(15,23,42,.08)!important;
+}
+.shipment-menu.open{
+  display:block!important;
+}
+.delete-menu-btn{
+  min-height:43px!important;
+  font-size:14px!important;
+  font-weight:900!important;
+}
+</style>
 </head>
 
 <body>
@@ -719,6 +749,24 @@ let selectedBranch = "";
 // Simpan status buka/tutup card agar render() tidak otomatis me-minimize kembali.
 const expandedShipments = new Set();
 const deletingShipments = new Set();
+const LOCAL_DELETED_KEY = "checklist_prn_deleted_ids_v1";
+const LOCAL_PENDING_DELETE_KEY = "checklist_prn_pending_deletes_v1";
+let deletedShipments = new Set();
+let pendingDeletes = new Set();
+
+try{
+  const rawDeleted=JSON.parse(localStorage.getItem(LOCAL_DELETED_KEY)||"[]");
+  if(Array.isArray(rawDeleted)) deletedShipments=new Set(rawDeleted);
+}catch(e){}
+try{
+  const rawPending=JSON.parse(localStorage.getItem(LOCAL_PENDING_DELETE_KEY)||"[]");
+  if(Array.isArray(rawPending)) pendingDeletes=new Set(rawPending);
+}catch(e){}
+
+function persistDeleteState(){
+  localStorage.setItem(LOCAL_DELETED_KEY,JSON.stringify([...deletedShipments]));
+  localStorage.setItem(LOCAL_PENDING_DELETE_KEY,JSON.stringify([...pendingDeletes]));
+}
 
 function todayKey(){
   const d = new Date();
@@ -773,7 +821,7 @@ save();
 function dayData(){
   const date=document.getElementById("datePicker").value||todayKey();
   return data
-    .filter(x=>x.date===date && !deletingShipments.has(x.id))
+    .filter(x=>x.date===date && !deletingShipments.has(x.id) && !deletedShipments.has(x.id))
     .sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
 }
 
@@ -842,7 +890,7 @@ function render(){
           <div style="display:flex;align-items:center;gap:7px;position:relative">
             <span class="status ${st[1]}">${st[0]}</span>
             <button type="button" class="ship-more" aria-label="Menu kiriman"
-                    onclick="event.preventDefault();event.stopPropagation();toggleShipmentMenu('${x.id}',this)">
+                    onclick="event.preventDefault();event.stopPropagation();toggleShipmentMenu('${x.id}',this,event)">
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/>
               </svg>
@@ -1120,13 +1168,24 @@ render();
 
 
 <script>
-window.toggleShipmentMenu=function(id,btn){
-  event.stopPropagation();
+window.toggleShipmentMenu=function(id,btn,evt){
+  evt?.preventDefault?.();
+  evt?.stopPropagation?.();
+
+  document.querySelectorAll('.shipment.menu-open').forEach(card=>{
+    if(card.dataset.id!==id) card.classList.remove('menu-open');
+  });
   document.querySelectorAll('.shipment-menu.open').forEach(m=>{
     if(m.id!=='shipment-menu-'+id) m.classList.remove('open');
   });
+
   const menu=document.getElementById('shipment-menu-'+id);
-  if(menu) menu.classList.toggle('open');
+  const card=document.querySelector('.shipment[data-id="'+id+'"]');
+  if(!menu) return;
+
+  const willOpen=!menu.classList.contains('open');
+  menu.classList.toggle('open',willOpen);
+  if(card) card.classList.toggle('menu-open',willOpen);
 };
 
 window.deleteShipment=async function(evt,id){
@@ -1140,33 +1199,40 @@ window.deleteShipment=async function(evt,id){
   const ok=confirm('Hapus '+name+'?\\n\\nData checklist dan foto kiriman ini akan dihapus permanen.');
   if(!ok) return;
 
-  deletingShipments.add(id);
+  // Hide immediately and persist the deletion locally.
+  // This prevents Firebase realtime echoes from putting the card back.
+  deletedShipments.add(id);
+  pendingDeletes.add(id);
+  persistDeleteState();
+
   data=data.filter(a=>a.id!==id);
   expandedShipments.delete(id);
   save();
   render();
 
+  document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
+  document.querySelectorAll('.shipment.menu-open').forEach(c=>c.classList.remove('menu-open'));
+
   try{
     if(window.__firebaseDeleteItem){
       await window.__firebaseDeleteItem(id);
+      pendingDeletes.delete(id);
+      persistDeleteState();
+      toast('Kiriman berhasil dihapus');
+    }else{
+      toast('Kiriman dihapus lokal, menunggu internet');
     }
-    toast('Kiriman berhasil dihapus');
   }catch(err){
     console.error('Delete shipment failed:',err);
-    deletingShipments.delete(id);
-    data.push(x);
-    data.sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-    save();
-    render();
-    toast('Gagal menghapus dari Firebase');
-  }finally{
-    setTimeout(()=>deletingShipments.delete(id),1500);
-    document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
+    // Keep it deleted locally; retry automatically once Firebase is online.
+    persistDeleteState();
+    toast('Kiriman dihapus, sinkron saat online');
   }
 };
 
 document.addEventListener('click',()=>{
   document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
+  document.querySelectorAll('.shipment.menu-open').forEach(c=>c.classList.remove('menu-open'));
 });
 </script>
 
@@ -1223,9 +1289,16 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
 
   function remoteToArray(root){
     const raw=root?.items;
-    if(Array.isArray(raw)) return raw.map(cleanItem);
-    if(raw && typeof raw==='object') return Object.values(raw).map(cleanItem);
-    return [];
+    let arr=[];
+    if(Array.isArray(raw)) arr=raw.map(cleanItem);
+    else if(raw && typeof raw==='object') arr=Object.values(raw).map(cleanItem);
+
+    const remoteDeleted=root?.deleted;
+    if(remoteDeleted && typeof remoteDeleted==='object'){
+      Object.keys(remoteDeleted).forEach(id=>deletedShipments.add(id));
+      persistDeleteState();
+    }
+    return arr.filter(x=>!deletedShipments.has(x.id));
   }
 
   async function patchItem(id,patch){
@@ -1240,29 +1313,19 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
   };
 
   window.__firebaseDeleteItem=async function(id){
-    if(!db){
-      throw new Error('Firebase belum siap');
-    }
-
-    const itemRef=ref(db,ITEMS_PATH+'/'+id);
+    if(!db) throw new Error('Firebase belum siap');
 
     try{
-      // Primary delete.
-      await remove(itemRef);
+      // Atomic root update:
+      // 1) remove the actual item
+      // 2) write a tombstone so every connected device hides the item
+      //    even if another listener briefly has stale cached data.
+      const patch={};
+      patch[`items/${id}`]=null;
+      patch[`deleted/${id}`]=Date.now();
+      await update(ref(db,DB_PATH),patch);
 
-      // Verify the node is really gone. This also catches rules/path problems.
-      let verify=await get(itemRef);
-      if(verify.exists()){
-        // Fallback: explicit null write.
-        await set(itemRef,null);
-        verify=await get(itemRef);
-      }
-
-      if(verify.exists()){
-        throw new Error('Data masih ada di Firebase setelah penghapusan');
-      }
-
-      // Clean the three possible photo objects. Missing files are harmless.
+      // Best-effort cleanup of the three possible Storage files.
       if(storage){
         for(const type of ['cabang','terima','bjm']){
           try{
@@ -1276,7 +1339,7 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
       setOnlineUI(true,'Kiriman terhapus dari server');
     }catch(err){
       console.error('Firebase delete error:',err);
-      setOnlineUI(false,'Gagal menghapus dari Firebase');
+      setOnlineUI(false,'Menunggu sinkronisasi hapus');
       throw err;
     }
   };
@@ -1306,12 +1369,30 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
     }
   };
 
+  async function flushPendingDeletes(){
+    if(!pendingDeletes.size || !window.__firebaseDeleteItem) return;
+    const ids=[...pendingDeletes];
+    for(const id of ids){
+      try{
+        await window.__firebaseDeleteItem(id);
+        pendingDeletes.delete(id);
+        deletedShipments.add(id);
+        persistDeleteState();
+      }catch(err){
+        console.error('Pending delete retry failed:',err);
+      }
+    }
+    render();
+  }
+
   try{
     const app=getApps().length ? getApps()[0] : initializeApp(config);
     db=getDatabase(app); storage=getStorage(app);
 
     onValue(ref(db,'.info/connected'),snap=>{
-      setOnlineUI(!!snap.val(),snap.val()?'Live Sync tersambung':'Menunggu koneksi');
+      const online=!!snap.val();
+      setOnlineUI(online,online?'Live Sync tersambung':'Menunggu koneksi');
+      if(online) flushPendingDeletes();
     });
 
     onValue(ref(db,DB_PATH),async snapshot=>{
@@ -1342,6 +1423,8 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
         if(!snap.val() && local.length) await window.__firebaseSaveData(local);
       }catch(err){ console.error('Initial Firebase sync:',err); }
     },800);
+
+    setTimeout(()=>flushPendingDeletes(),1600);
   }catch(err){
     console.error('Firebase init error:',err);
     setOnlineUI(false,'Mode lokal');
