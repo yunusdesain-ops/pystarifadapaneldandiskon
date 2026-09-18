@@ -620,6 +620,14 @@ body{font-size:14px;color:var(--ink)}
   font-weight:900!important;
 }
 </style>
+
+<style id="photo-sync-fallback-note">
+.firebase-photo-fallback-note{
+  margin-top:4px;
+  font-size:10px;
+  color:#64748b;
+}
+</style>
 </head>
 
 <body>
@@ -1069,7 +1077,8 @@ window.takePhoto=async function(event,id,type){
     }
     toast(type==="cabang"?"Foto cabang tersimpan":type==="terima"?"Foto penerimaan tersimpan":"Foto BJM → PRN tersimpan");
   }catch(e){
-    console.error(e);toast("Foto gagal diproses");
+    console.error(e);
+    toast("Foto sudah diproses, tetapi gagal sinkron online");
   }
   event.target.value="";
 };
@@ -1345,15 +1354,50 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
   };
 
   window.__firebaseUploadPhotoAndPatch=async function(id,type,dataUrl){
-    if(!db || !storage) throw new Error('Firebase belum siap');
+    if(!db) throw new Error('Firebase belum siap');
     const field=type==='cabang'?'photoCabang':(type==='terima'?'photoTerimaBjm':'photoBjm');
-    const storagePath=`checklist_prn/${id}/${type}.jpg`;
-    const sref=storageRef(storage,storagePath);
-    await uploadString(sref,dataUrl,'data_url',{contentType:'image/jpeg',cacheControl:'public,max-age=31536000'});
-    const url=await getDownloadURL(sref);
+
+    /*
+      Primary: Firebase Storage -> RTDB stores only URL.
+      Fallback: if Storage is unavailable / rules reject it, store the
+      compressed JPEG data URL directly in RTDB. This guarantees the
+      photo still syncs between devices because Realtime Database is
+      already working in this app.
+    */
+    if(storage){
+      try{
+        const storagePath=`checklist_prn/${id}/${type}.jpg`;
+        const sref=storageRef(storage,storagePath);
+        await uploadString(
+          sref,
+          dataUrl,
+          'data_url',
+          {contentType:'image/jpeg',cacheControl:'public,max-age=31536000'}
+        );
+        const url=await getDownloadURL(sref);
+
+        const local=data.find(x=>x.id===id);
+        if(local){
+          local[field]=url;
+          localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+          render();
+        }
+        await patchItem(id,{[field]:url});
+        setOnlineUI(true,'Foto tersimpan online');
+        return;
+      }catch(storageErr){
+        console.warn('Firebase Storage gagal, pakai fallback RTDB:',storageErr);
+      }
+    }
+
+    // Fallback RTDB: data URL is already compressed by compressImage().
+    await patchItem(id,{[field]:dataUrl});
     const local=data.find(x=>x.id===id);
-    if(local){ local[field]=url; localStorage.setItem(STORAGE_KEY,JSON.stringify(data)); render(); }
-    await patchItem(id,{[field]:url});
+    if(local){
+      local[field]=dataUrl;
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+      render();
+    }
     setOnlineUI(true,'Foto tersimpan online');
   };
 
