@@ -697,9 +697,102 @@ body{font-size:14px;color:var(--ink)}
   flex:0 0 auto!important;
 }
 </style>
+
+<style id="global-delete-menu-fix">
+/* Menu hapus global: tidak ikut hilang ketika card di-render ulang. */
+.shipment .shipment-menu{display:none!important;}
+#globalShipmentMenu{
+  position:fixed;
+  z-index:2147483647;
+  display:none;
+  width:max-content;
+  min-width:0;
+  max-width:220px;
+  padding:5px;
+  box-sizing:border-box;
+  background:#fff;
+  border:1px solid #dbe4ef;
+  border-radius:13px;
+  box-shadow:0 14px 30px rgba(15,23,42,.20);
+}
+#globalShipmentMenu.open{display:block;}
+#globalShipmentMenu .delete-menu-btn{
+  width:auto!important;
+  min-width:0!important;
+  min-height:42px!important;
+  padding:9px 13px!important;
+  white-space:nowrap;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  border:0!important;
+  border-radius:9px;
+  background:transparent;
+  color:#b42318;
+  font-size:13px;
+  font-weight:900;
+  cursor:pointer;
+}
+#globalShipmentMenu .delete-menu-btn:active{background:#fff1f1;}
+#globalShipmentMenu .delete-menu-btn svg{width:16px;height:16px;flex:0 0 auto;}
+</style>
+
+<style id="mcode-max15-final">
+.code-counter{
+  margin-top:5px;
+  text-align:right;
+  font-size:10px;
+  line-height:1;
+  font-weight:800;
+  color:#8090a4;
+}
+</style>
+
+<style id="explicit-photo-upload-ui">
+.upload-photo-btn{
+  width:100%;
+  min-height:44px;
+  margin-top:8px;
+  border:0;
+  border-radius:13px;
+  background:linear-gradient(135deg,#174b83,#0e66d8);
+  color:#fff;
+  font-size:13px;
+  font-weight:900;
+  letter-spacing:.15px;
+  cursor:pointer;
+}
+.upload-photo-btn:disabled{opacity:.65;cursor:wait}
+.photo-online-ok{
+  margin-top:8px;
+  min-height:42px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  padding:9px 12px;
+  border-radius:12px;
+  background:#e8f7ee;
+  border:1px solid #b8dfc5;
+  color:#197044;
+  font-size:12px;
+  font-weight:900;
+}
+</style>
 </head>
 
 <body>
+<div id="globalShipmentMenu" aria-hidden="true">
+  <button type="button" class="delete-menu-btn" id="globalDeleteShipmentBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/>
+      <path d="M10 11v6"/><path d="M14 11v6"/>
+    </svg>
+    Hapus kiriman
+  </button>
+</div>
+
 <header class="header">
   <div class="header-inner">
     <div class="brand-row">
@@ -796,8 +889,10 @@ body{font-size:14px;color:var(--ink)}
       </select>
     </div>
     <div class="field">
-      <label>NOMOR PACKING / REFERENSI</label>
-      <input id="mCode" class="date-input" placeholder="Contoh: Kiriman 1 Pagi">
+      <label>NAMA KIRIMAN</label>
+      <input id="mCode" class="date-input" maxlength="15" inputmode="text" autocomplete="off"
+             placeholder="Contoh: Kiriman 1 Pagi">
+      <div id="mCodeCounter" class="code-counter">0/15</div>
     </div>
     <div class="field">
       <label>CATATAN</label>
@@ -977,8 +1072,8 @@ function render(){
                 <path d="m6 9 6 6 6-6"/>
               </svg>
             </span>
-            <div class="shipment-menu" id="shipment-menu-${x.id}" onclick="event.stopPropagation()">
-              <button type="button" class="delete-menu-btn" onclick="deleteShipment(event,'${x.id}')">
+            <div class="shipment-menu" id="shipment-menu-${x.id}">
+              <button type="button" class="delete-menu-btn" data-delete-id="${x.id}" title="Hapus kiriman">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
                 </svg>
@@ -1033,6 +1128,10 @@ function render(){
                  onchange="takePhoto(event,'${x.id}','cabang')">
           <input id="gal-cabang-${x.id}" type="file" accept="image/*" class="hidden"
                  onchange="takePhoto(event,'${x.id}','cabang')">
+          ${x.photoCabang ? (x.photoCabangOnline
+            ? `<div class="photo-online-ok">✓ Tersimpan online</div>`
+            : `<button type="button" class="upload-photo-btn" onclick="uploadPhotoOnline(event,'${x.id}','cabang')">UPLOAD FOTO ONLINE</button>`)
+            : ""}
         </div>
 
         <div class="section">
@@ -1080,6 +1179,10 @@ function render(){
                  onchange="takePhoto(event,'${x.id}','terima')">
           <input id="gal-terima-${x.id}" type="file" accept="image/*" class="hidden"
                  onchange="takePhoto(event,'${x.id}','terima')">
+          ${x.photoTerimaBjm ? (x.photoTerimaBjmOnline
+            ? `<div class="photo-online-ok">✓ Tersimpan online</div>`
+            : `<button type="button" class="upload-photo-btn" onclick="uploadPhotoOnline(event,'${x.id}','terima')">UPLOAD FOTO ONLINE</button>`)
+            : ""}
         </div>
 
         <div class="section">
@@ -1127,6 +1230,10 @@ function render(){
                  onchange="takePhoto(event,'${x.id}','bjm')">
           <input id="gal-bjm-${x.id}" type="file" accept="image/*" class="hidden"
                  onchange="takePhoto(event,'${x.id}','bjm')">
+          ${x.photoBjm ? (x.photoBjmOnline
+            ? `<div class="photo-online-ok">✓ Tersimpan online</div>`
+            : `<button type="button" class="upload-photo-btn" onclick="uploadPhotoOnline(event,'${x.id}','bjm')">UPLOAD FOTO ONLINE</button>`)
+            : ""}
         </div>
         </div>
       </article>`;
@@ -1168,17 +1275,56 @@ window.takePhoto=async function(event,id,type){
     const photo=await compressImage(file);
     const x=data.find(a=>a.id===id);
     if(!x)return;
+
     const field=type==="cabang"?"photoCabang":(type==="terima"?"photoTerimaBjm":"photoBjm");
+    const flag=type==="cabang"?"photoCabangOnline":(type==="terima"?"photoTerimaBjmOnline":"photoBjmOnline");
+
     x[field]=photo;
-    save();render();
-    if(window.__firebaseUploadPhotoAndPatch){
-      await window.__firebaseUploadPhotoAndPatch(id,type,photo);
-    }
-    toast(type==="cabang"?"Foto cabang tersimpan":type==="terima"?"Foto penerimaan tersimpan":"Foto BJM → PRN tersimpan");
+    x[flag]=false;
+    save();
+    render();
+    toast("Foto siap. Tekan UPLOAD FOTO ONLINE");
   }catch(e){
-    console.error(e);toast("Foto gagal diproses");
+    console.error(e);
+    toast("Foto gagal diproses");
   }
   event.target.value="";
+};
+
+window.uploadPhotoOnline=async function(evt,id,type){
+  evt?.preventDefault?.();
+  evt?.stopPropagation?.();
+
+  const x=data.find(a=>a.id===id);
+  if(!x)return;
+
+  const field=type==="cabang"?"photoCabang":(type==="terima"?"photoTerimaBjm":"photoBjm");
+  const flag=type==="cabang"?"photoCabangOnline":(type==="terima"?"photoTerimaBjmOnline":"photoBjmOnline");
+
+  if(!x[field]){
+    toast("Belum ada foto");
+    return;
+  }
+
+  const btn=evt.currentTarget;
+  btn.disabled=true;
+  btn.textContent="MENGUPLOAD...";
+
+  try{
+    if(!window.__firebaseUploadPhotoToRTDB){
+      throw new Error("Firebase belum siap");
+    }
+    await window.__firebaseUploadPhotoToRTDB(id,type,x[field]);
+    x[flag]=true;
+    save();
+    render();
+    toast("✓ Foto berhasil tersimpan online");
+  }catch(e){
+    console.error("Photo upload:",e);
+    btn.disabled=false;
+    btn.textContent="UPLOAD FOTO ONLINE";
+    toast("Upload gagal. Coba lagi");
+  }
 };
 
 window.viewPhoto=function(id,type){
@@ -1256,6 +1402,7 @@ document.getElementById("saveBtn").onclick=()=>{
     id:uid(),date,branch,code,note,
     received:false,sent:false,
     photoCabang:"",photoTerimaBjm:"",photoBjm:"",
+    photoCabangOnline:false,photoTerimaBjmOnline:false,photoBjmOnline:false,
     createdAt:Date.now()
   });
   save();
@@ -1275,60 +1422,65 @@ render();
 
 
 <script>
+let globalDeleteId=null;
+
 window.toggleShipmentMenu=function(id,btn,evt){
   evt?.preventDefault?.();
   evt?.stopPropagation?.();
 
-  document.querySelectorAll('.shipment-menu.open').forEach(m=>{
-    if(m.id!=='shipment-menu-'+id) m.classList.remove('open');
-  });
+  const menu=document.getElementById('globalShipmentMenu');
+  const del=document.getElementById('globalDeleteShipmentBtn');
+  if(!menu || !del) return;
 
-  const menu=document.getElementById('shipment-menu-'+id);
-  if(!menu) return;
+  document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
+  globalDeleteId = id;
+  del.dataset.deleteId = id;
 
-  const opening=!menu.classList.contains('open');
-  if(opening){
-    const r=btn.getBoundingClientRect();
-    const margin=8;
+  const r=btn.getBoundingClientRect();
+  const menuWidth=Math.min(Math.max(del.scrollWidth+28,165),220);
+  const menuHeight=52;
+  const gap=8;
+  const margin=8;
 
-    // Show first so the browser can measure the actual content width.
-    menu.style.visibility='hidden';
-    menu.style.display='block';
-    const mw=Math.min(menu.scrollWidth || 185, 210);
-    const mh=menu.scrollHeight || 52;
+  let left=r.right-menuWidth;
+  if(left<margin) left=margin;
+  if(left+menuWidth>window.innerWidth-margin) left=window.innerWidth-menuWidth-margin;
 
-    let left=r.right-mw;
-    if(left<margin) left=margin;
-    if(left+mw>window.innerWidth-margin) left=window.innerWidth-mw-margin;
-
-    let top=r.bottom+8;
-    if(top+mh>window.innerHeight-margin){
-      top=Math.max(margin,r.top-mh-8);
-    }
-
-    menu.style.visibility='';
-    menu.style.display='';
-    menu.style.left=Math.round(left)+'px';
-    menu.style.top=Math.round(top)+'px';
-    menu.classList.add('open');
-  }else{
-    menu.classList.remove('open');
+  let top=r.bottom+gap;
+  if(top+menuHeight>window.innerHeight-margin){
+    top=Math.max(margin,r.top-menuHeight-gap);
   }
+
+  menu.style.width=menuWidth+'px';
+  menu.style.left=Math.round(left)+'px';
+  menu.style.top=Math.round(top)+'px';
+
+  // Direct handler: this button is outside the card DOM, so card rerenders
+  // cannot interfere with the delete click.
+  del.onclick=(e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    globalDeleteShipment();
+  };
+
+  menu.classList.add('open');
+  menu.setAttribute('aria-hidden','false');
 };
 
-window.deleteShipment=async function(evt,id){
-  evt?.preventDefault?.();
-  evt?.stopPropagation?.();
 
+async function performDeleteShipment(id){
   const x=data.find(a=>a.id===id);
-  if(!x) return;
+  if(!x){
+    toast("Kiriman tidak ditemukan");
+    return;
+  }
 
-  const name=x.code || 'kiriman ini';
-  const ok=confirm('Hapus '+name+'?\\n\\nData checklist dan foto kiriman ini akan dihapus permanen.');
-  if(!ok) return;
+  const name=x.code || "kiriman ini";
+  if(!window.confirm("Hapus "+name+"?\n\nData checklist dan foto kiriman ini akan dihapus.")){
+    return;
+  }
 
-  // Hide immediately and persist the deletion locally.
-  // This prevents Firebase realtime echoes from putting the card back.
+  // Remove from the current device immediately.
   deletedShipments.add(id);
   pendingDeletes.add(id);
   persistDeleteState();
@@ -1337,35 +1489,69 @@ window.deleteShipment=async function(evt,id){
   expandedShipments.delete(id);
   save();
   render();
-
-  document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
+  closeGlobalShipmentMenu();
 
   try{
-    if(window.__firebaseDeleteItem){
+    if(typeof window.__firebaseDeleteItem==="function"){
       await window.__firebaseDeleteItem(id);
       pendingDeletes.delete(id);
       persistDeleteState();
-      toast('Kiriman berhasil dihapus');
+      toast("Kiriman berhasil dihapus");
     }else{
-      toast('Kiriman dihapus lokal, menunggu internet');
+      // Keep it deleted locally; the pending queue will retry when Firebase is ready.
+      toast("Kiriman dihapus di HP");
     }
   }catch(err){
-    console.error('Delete shipment failed:',err);
-    // Keep it deleted locally; retry automatically once Firebase is online.
+    console.error("Delete shipment error:",err);
+    // Do NOT restore it. Pending delete remains queued for the next online retry.
     persistDeleteState();
-    toast('Kiriman dihapus, sinkron saat online');
+    toast("Kiriman dihapus, menunggu sinkronisasi");
   }
+}
+
+window.deleteShipment=function(id){
+  return performDeleteShipment(id);
 };
 
-document.addEventListener('click',()=>{
-  document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
-});
-window.addEventListener('scroll',()=>{
-  document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
-},{passive:true});
-window.addEventListener('resize',()=>{
-  document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
-});
+async function globalDeleteShipment(){
+  const id=globalDeleteId || document.getElementById('globalDeleteShipmentBtn')?.dataset.deleteId;
+  if(!id) return;
+
+  closeGlobalShipmentMenu();
+  await performDeleteShipment(id);
+}
+
+function closeGlobalShipmentMenu(){
+  const menu=document.getElementById('globalShipmentMenu');
+  if(menu){
+    menu.classList.remove('open');
+    menu.setAttribute('aria-hidden','true');
+  }
+  globalDeleteId=null;
+  const del=document.getElementById('globalDeleteShipmentBtn');
+  if(del) del.removeAttribute('data-delete-id');
+}
+
+document.addEventListener('click',(e)=>{
+  const del=e.target.closest('#globalDeleteShipmentBtn');
+  if(del){
+    e.preventDefault();
+    e.stopPropagation();
+    globalDeleteShipment();
+    return;
+  }
+
+  const more=e.target.closest('.ship-more');
+  if(more) return; // opener handles its own event
+
+  const menu=e.target.closest('#globalShipmentMenu');
+  if(menu) return;
+
+  closeGlobalShipmentMenu();
+}, false);
+
+window.addEventListener('scroll',closeGlobalShipmentMenu,{passive:true});
+window.addEventListener('resize',closeGlobalShipmentMenu);
 </script>
 
 <script type="module">
@@ -1415,6 +1601,9 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
       id:x.id||uid(), date:x.date||todayKey(), branch:x.branch||'PBK', code:x.code||'', note:x.note||'',
       received:!!x.received, sent:!!x.sent,
       photoCabang:x.photoCabang||'', photoTerimaBjm:x.photoTerimaBjm||'', photoBjm:x.photoBjm||'',
+      photoCabangOnline:x.photoCabangOnline===true,
+      photoTerimaBjmOnline:x.photoTerimaBjmOnline===true,
+      photoBjmOnline:x.photoBjmOnline===true,
       createdAt:Number(x.createdAt)||Date.now()
     };
   }
@@ -1474,6 +1663,21 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
       setOnlineUI(false,'Menunggu sinkronisasi hapus');
       throw err;
     }
+  };
+
+  window.__firebaseUploadPhotoToRTDB=async function(id,type,dataUrl){
+    if(!db) throw new Error('Firebase belum siap');
+    const field=type==='cabang'?'photoCabang':(type==='terima'?'photoTerimaBjm':'photoBjm');
+    const flag=type==='cabang'?'photoCabangOnline':(type==='terima'?'photoTerimaBjmOnline':'photoBjmOnline');
+
+    // The photo is already compressed by compressImage() before upload.
+    await update(ref(db,ITEMS_PATH+'/'+id),{
+      [field]:dataUrl,
+      [flag]:true,
+      [field+'UpdatedAt']:Date.now()
+    });
+
+    setOnlineUI(true,'Foto tersimpan online');
   };
 
   window.__firebaseUploadPhotoAndPatch=async function(id,type,dataUrl){
@@ -1561,6 +1765,24 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
     console.error('Firebase init error:',err);
     setOnlineUI(false,'Mode lokal');
   }
+})();
+</script>
+
+<script id="mcode-max15-js">
+(function(){
+  const input=document.getElementById("mCode");
+  const counter=document.getElementById("mCodeCounter");
+  if(!input) return;
+
+  const sync=()=>{
+    if(input.value.length>15) input.value=input.value.slice(0,15);
+    if(counter) counter.textContent=input.value.length+"/15";
+  };
+
+  input.maxLength=15;
+  input.addEventListener("input",sync);
+  input.addEventListener("paste",()=>setTimeout(sync,0));
+  sync();
 })();
 </script>
 </body>
