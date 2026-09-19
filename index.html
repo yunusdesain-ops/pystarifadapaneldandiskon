@@ -747,33 +747,7 @@ body{font-size:14px;color:var(--ink)}
   color:#8090a4;
 }
 </style>
-<style id="photo-upload-status-final">
-.photo-status{
-  margin-top:8px;
-  min-height:38px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
-  padding:8px 10px;
-  box-sizing:border-box;
-  border-radius:11px;
-  font-size:11px;
-  font-weight:900;
-}
-.photo-status.uploading{background:#eef4ff;border:1px solid #c5d8f4;color:#2b6198}
-.photo-status.online{background:#e8f7ee;border:1px solid #b8dfc5;color:#197044}
-.photo-status.pending{background:#fff3f1;border:1px solid #f1c7c1;color:#9b2c1f}
-.photo-status button{
-  border:0;
-  border-radius:8px;
-  padding:6px 9px;
-  background:#b42318;
-  color:#fff;
-  font-size:10px;
-  font-weight:900;
-}
-</style>
+
 </head>
 
 <body>
@@ -1123,12 +1097,6 @@ function render(){
                  onchange="takePhoto(event,'${x.id}','cabang')">
           <input id="gal-cabang-${x.id}" type="file" accept="image/*" class="hidden"
                  onchange="takePhoto(event,'${x.id}','cabang')">
-          ${x.photoCabang ? (x.photoCabangStatus==="uploading"
-            ? `<div class="photo-status uploading">⏫ Menyimpan online...</div>`
-            : x.photoCabangOnline
-              ? `<div class="photo-status online">✓ Tersimpan online</div>`
-              : `<div class="photo-status pending">Menunggu sinkronisasi online...</div>`)
-            : ""}
         </div>
 
         <div class="section">
@@ -1176,12 +1144,6 @@ function render(){
                  onchange="takePhoto(event,'${x.id}','terima')">
           <input id="gal-terima-${x.id}" type="file" accept="image/*" class="hidden"
                  onchange="takePhoto(event,'${x.id}','terima')">
-          ${x.photoTerimaBjm ? (x.photoTerimaBjmStatus==="uploading"
-            ? `<div class="photo-status uploading">⏫ Menyimpan online...</div>`
-            : x.photoTerimaBjmOnline
-              ? `<div class="photo-status online">✓ Tersimpan online</div>`
-              : `<div class="photo-status pending">Menunggu sinkronisasi online...</div>`)
-            : ""}
         </div>
 
         <div class="section">
@@ -1229,12 +1191,6 @@ function render(){
                  onchange="takePhoto(event,'${x.id}','bjm')">
           <input id="gal-bjm-${x.id}" type="file" accept="image/*" class="hidden"
                  onchange="takePhoto(event,'${x.id}','bjm')">
-          ${x.photoBjm ? (x.photoBjmStatus==="uploading"
-            ? `<div class="photo-status uploading">⏫ Menyimpan online...</div>`
-            : x.photoBjmOnline
-              ? `<div class="photo-status online">✓ Tersimpan online</div>`
-              : `<div class="photo-status pending">Menunggu sinkronisasi online...</div>`)
-            : ""}
         </div>
         </div>
       </article>`;
