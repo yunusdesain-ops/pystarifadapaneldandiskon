@@ -747,35 +747,30 @@ body{font-size:14px;color:var(--ink)}
   color:#8090a4;
 }
 </style>
-
-<style id="explicit-photo-upload-ui">
-.upload-photo-btn{
-  width:100%;
-  min-height:44px;
+<style id="photo-upload-status-final">
+.photo-status{
   margin-top:8px;
-  border:0;
-  border-radius:13px;
-  background:linear-gradient(135deg,#174b83,#0e66d8);
-  color:#fff;
-  font-size:13px;
-  font-weight:900;
-  letter-spacing:.15px;
-  cursor:pointer;
-}
-.upload-photo-btn:disabled{opacity:.65;cursor:wait}
-.photo-online-ok{
-  margin-top:8px;
-  min-height:42px;
+  min-height:38px;
   display:flex;
   align-items:center;
   justify-content:center;
+  gap:8px;
+  padding:8px 10px;
   box-sizing:border-box;
-  padding:9px 12px;
-  border-radius:12px;
-  background:#e8f7ee;
-  border:1px solid #b8dfc5;
-  color:#197044;
-  font-size:12px;
+  border-radius:11px;
+  font-size:11px;
+  font-weight:900;
+}
+.photo-status.uploading{background:#eef4ff;border:1px solid #c5d8f4;color:#2b6198}
+.photo-status.online{background:#e8f7ee;border:1px solid #b8dfc5;color:#197044}
+.photo-status.pending{background:#fff3f1;border:1px solid #f1c7c1;color:#9b2c1f}
+.photo-status button{
+  border:0;
+  border-radius:8px;
+  padding:6px 9px;
+  background:#b42318;
+  color:#fff;
+  font-size:10px;
   font-weight:900;
 }
 </style>
@@ -890,9 +885,9 @@ body{font-size:14px;color:var(--ink)}
     </div>
     <div class="field">
       <label>NAMA KIRIMAN</label>
-      <input id="mCode" class="date-input" maxlength="15" inputmode="text" autocomplete="off"
+      <input id="mCode" class="date-input" maxlength="12" inputmode="text" autocomplete="off"
              placeholder="Contoh: Kiriman 1 Pagi">
-      <div id="mCodeCounter" class="code-counter">0/15</div>
+      <div id="mCodeCounter" class="code-counter">0/12</div>
     </div>
     <div class="field">
       <label>CATATAN</label>
@@ -1128,9 +1123,11 @@ function render(){
                  onchange="takePhoto(event,'${x.id}','cabang')">
           <input id="gal-cabang-${x.id}" type="file" accept="image/*" class="hidden"
                  onchange="takePhoto(event,'${x.id}','cabang')">
-          ${x.photoCabang ? (x.photoCabangOnline
-            ? `<div class="photo-online-ok">✓ Tersimpan online</div>`
-            : `<button type="button" class="upload-photo-btn" onclick="uploadPhotoOnline(event,'${x.id}','cabang')">UPLOAD FOTO ONLINE</button>`)
+          ${x.photoCabang ? (x.photoCabangStatus==="uploading"
+            ? `<div class="photo-status uploading">⏫ Mengupload foto...</div>`
+            : x.photoCabangOnline
+              ? `<div class="photo-status online">✓ Tersimpan online</div>`
+              : `<div class="photo-status pending">Belum tersimpan online <button type="button" onclick="uploadPhotoOnline(event,'${x.id}','cabang')">UPLOAD ULANG</button></div>`)
             : ""}
         </div>
 
@@ -1179,9 +1176,11 @@ function render(){
                  onchange="takePhoto(event,'${x.id}','terima')">
           <input id="gal-terima-${x.id}" type="file" accept="image/*" class="hidden"
                  onchange="takePhoto(event,'${x.id}','terima')">
-          ${x.photoTerimaBjm ? (x.photoTerimaBjmOnline
-            ? `<div class="photo-online-ok">✓ Tersimpan online</div>`
-            : `<button type="button" class="upload-photo-btn" onclick="uploadPhotoOnline(event,'${x.id}','terima')">UPLOAD FOTO ONLINE</button>`)
+          ${x.photoTerimaBjm ? (x.photoTerimaBjmStatus==="uploading"
+            ? `<div class="photo-status uploading">⏫ Mengupload foto...</div>`
+            : x.photoTerimaBjmOnline
+              ? `<div class="photo-status online">✓ Tersimpan online</div>`
+              : `<div class="photo-status pending">Belum tersimpan online <button type="button" onclick="uploadPhotoOnline(event,'${x.id}','terima')">UPLOAD ULANG</button></div>`)
             : ""}
         </div>
 
@@ -1230,9 +1229,11 @@ function render(){
                  onchange="takePhoto(event,'${x.id}','bjm')">
           <input id="gal-bjm-${x.id}" type="file" accept="image/*" class="hidden"
                  onchange="takePhoto(event,'${x.id}','bjm')">
-          ${x.photoBjm ? (x.photoBjmOnline
-            ? `<div class="photo-online-ok">✓ Tersimpan online</div>`
-            : `<button type="button" class="upload-photo-btn" onclick="uploadPhotoOnline(event,'${x.id}','bjm')">UPLOAD FOTO ONLINE</button>`)
+          ${x.photoBjm ? (x.photoBjmStatus==="uploading"
+            ? `<div class="photo-status uploading">⏫ Mengupload foto...</div>`
+            : x.photoBjmOnline
+              ? `<div class="photo-status online">✓ Tersimpan online</div>`
+              : `<div class="photo-status pending">Belum tersimpan online <button type="button" onclick="uploadPhotoOnline(event,'${x.id}','bjm')">UPLOAD ULANG</button></div>`)
             : ""}
         </div>
         </div>
@@ -1270,6 +1271,7 @@ function compressImage(file){
 window.takePhoto=async function(event,id,type){
   const file=event.target.files&&event.target.files[0];
   if(!file)return;
+
   try{
     toast("Memproses foto...");
     const photo=await compressImage(file);
@@ -1277,13 +1279,36 @@ window.takePhoto=async function(event,id,type){
     if(!x)return;
 
     const field=type==="cabang"?"photoCabang":(type==="terima"?"photoTerimaBjm":"photoBjm");
-    const flag=type==="cabang"?"photoCabangOnline":(type==="terima"?"photoTerimaBjmOnline":"photoBjmOnline");
+    const statusField=type==="cabang"?"photoCabangStatus":(type==="terima"?"photoTerimaBjmStatus":"photoBjmStatus");
+    const onlineField=type==="cabang"?"photoCabangOnline":(type==="terima"?"photoTerimaBjmOnline":"photoBjmOnline");
 
+    // Show preview immediately, then upload automatically.
     x[field]=photo;
-    x[flag]=false;
+    x[statusField]="uploading";
+    x[onlineField]=false;
     save();
     render();
-    toast("Foto siap. Tekan UPLOAD FOTO ONLINE");
+
+    try{
+      if(typeof window.__firebaseUploadPhotoToRTDB!=="function"){
+        throw new Error("Firebase upload belum siap");
+      }
+
+      await window.__firebaseUploadPhotoToRTDB(id,type,photo);
+
+      x[statusField]="online";
+      x[onlineField]=true;
+      save();
+      render();
+      toast("✓ Foto tersimpan online");
+    }catch(uploadErr){
+      console.error("Auto upload foto:",uploadErr);
+      x[statusField]="pending";
+      x[onlineField]=false;
+      save();
+      render();
+      toast("Foto tersimpan di HP, belum online");
+    }
   }catch(e){
     console.error(e);
     toast("Foto gagal diproses");
@@ -1299,31 +1324,35 @@ window.uploadPhotoOnline=async function(evt,id,type){
   if(!x)return;
 
   const field=type==="cabang"?"photoCabang":(type==="terima"?"photoTerimaBjm":"photoBjm");
-  const flag=type==="cabang"?"photoCabangOnline":(type==="terima"?"photoTerimaBjmOnline":"photoBjmOnline");
+  const statusField=type==="cabang"?"photoCabangStatus":(type==="terima"?"photoTerimaBjmStatus":"photoBjmStatus");
+  const onlineField=type==="cabang"?"photoCabangOnline":(type==="terima"?"photoTerimaBjmOnline":"photoBjmOnline");
 
   if(!x[field]){
     toast("Belum ada foto");
     return;
   }
 
-  const btn=evt.currentTarget;
-  btn.disabled=true;
-  btn.textContent="MENGUPLOAD...";
+  x[statusField]="uploading";
+  save();
+  render();
 
   try{
-    if(!window.__firebaseUploadPhotoToRTDB){
-      throw new Error("Firebase belum siap");
+    if(typeof window.__firebaseUploadPhotoToRTDB!=="function"){
+      throw new Error("Firebase upload belum siap");
     }
     await window.__firebaseUploadPhotoToRTDB(id,type,x[field]);
-    x[flag]=true;
+    x[statusField]="online";
+    x[onlineField]=true;
     save();
     render();
     toast("✓ Foto berhasil tersimpan online");
-  }catch(e){
-    console.error("Photo upload:",e);
-    btn.disabled=false;
-    btn.textContent="UPLOAD FOTO ONLINE";
-    toast("Upload gagal. Coba lagi");
+  }catch(err){
+    console.error("Upload ulang foto:",err);
+    x[statusField]="pending";
+    x[onlineField]=false;
+    save();
+    render();
+    toast("Upload foto gagal");
   }
 };
 
@@ -1402,6 +1431,7 @@ document.getElementById("saveBtn").onclick=()=>{
     id:uid(),date,branch,code,note,
     received:false,sent:false,
     photoCabang:"",photoTerimaBjm:"",photoBjm:"",
+    photoCabangStatus:"",photoTerimaBjmStatus:"",photoBjmStatus:"",
     photoCabangOnline:false,photoTerimaBjmOnline:false,photoBjmOnline:false,
     createdAt:Date.now()
   });
@@ -1601,6 +1631,9 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
       id:x.id||uid(), date:x.date||todayKey(), branch:x.branch||'PBK', code:x.code||'', note:x.note||'',
       received:!!x.received, sent:!!x.sent,
       photoCabang:x.photoCabang||'', photoTerimaBjm:x.photoTerimaBjm||'', photoBjm:x.photoBjm||'',
+      photoCabangStatus:x.photoCabangStatus||"",
+      photoTerimaBjmStatus:x.photoTerimaBjmStatus||"",
+      photoBjmStatus:x.photoBjmStatus||"",
       photoCabangOnline:x.photoCabangOnline===true,
       photoTerimaBjmOnline:x.photoTerimaBjmOnline===true,
       photoBjmOnline:x.photoBjmOnline===true,
@@ -1668,16 +1701,15 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
   window.__firebaseUploadPhotoToRTDB=async function(id,type,dataUrl){
     if(!db) throw new Error('Firebase belum siap');
     const field=type==='cabang'?'photoCabang':(type==='terima'?'photoTerimaBjm':'photoBjm');
-    const flag=type==='cabang'?'photoCabangOnline':(type==='terima'?'photoTerimaBjmOnline':'photoBjmOnline');
+    const statusField=type==='cabang'?'photoCabangStatus':(type==='terima'?'photoTerimaBjmStatus':'photoBjmStatus');
 
-    // The photo is already compressed by compressImage() before upload.
+    // Image is compressed before this call. Realtime Database is used here
+    // so the upload does not depend on Firebase Storage authentication/rules.
     await update(ref(db,ITEMS_PATH+'/'+id),{
       [field]:dataUrl,
-      [flag]:true,
-      [field+'UpdatedAt']:Date.now()
+      [field+'UpdatedAt']:Date.now(),
+      [statusField]:'online'
     });
-
-    setOnlineUI(true,'Foto tersimpan online');
   };
 
   window.__firebaseUploadPhotoAndPatch=async function(id,type,dataUrl){
@@ -1768,18 +1800,16 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
 })();
 </script>
 
-<script id="mcode-max15-js">
+
+
+<script id="mcode-max12-guard">
 (function(){
   const input=document.getElementById("mCode");
-  const counter=document.getElementById("mCodeCounter");
   if(!input) return;
-
   const sync=()=>{
-    if(input.value.length>15) input.value=input.value.slice(0,15);
-    if(counter) counter.textContent=input.value.length+"/15";
+    if(input.value.length>12) input.value=input.value.slice(0,12);
   };
-
-  input.maxLength=15;
+  input.maxLength=12;
   input.addEventListener("input",sync);
   input.addEventListener("paste",()=>setTimeout(sync,0));
   sync();
