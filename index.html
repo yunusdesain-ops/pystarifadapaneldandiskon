@@ -1124,10 +1124,10 @@ function render(){
           <input id="gal-cabang-${x.id}" type="file" accept="image/*" class="hidden"
                  onchange="takePhoto(event,'${x.id}','cabang')">
           ${x.photoCabang ? (x.photoCabangStatus==="uploading"
-            ? `<div class="photo-status uploading">⏫ Mengupload foto...</div>`
+            ? `<div class="photo-status uploading">⏫ Menyimpan online...</div>`
             : x.photoCabangOnline
               ? `<div class="photo-status online">✓ Tersimpan online</div>`
-              : `<div class="photo-status pending">Belum tersimpan online <button type="button" onclick="uploadPhotoOnline(event,'${x.id}','cabang')">UPLOAD ULANG</button></div>`)
+              : `<div class="photo-status pending">Menunggu sinkronisasi online...</div>`)
             : ""}
         </div>
 
@@ -1177,10 +1177,10 @@ function render(){
           <input id="gal-terima-${x.id}" type="file" accept="image/*" class="hidden"
                  onchange="takePhoto(event,'${x.id}','terima')">
           ${x.photoTerimaBjm ? (x.photoTerimaBjmStatus==="uploading"
-            ? `<div class="photo-status uploading">⏫ Mengupload foto...</div>`
+            ? `<div class="photo-status uploading">⏫ Menyimpan online...</div>`
             : x.photoTerimaBjmOnline
               ? `<div class="photo-status online">✓ Tersimpan online</div>`
-              : `<div class="photo-status pending">Belum tersimpan online <button type="button" onclick="uploadPhotoOnline(event,'${x.id}','terima')">UPLOAD ULANG</button></div>`)
+              : `<div class="photo-status pending">Menunggu sinkronisasi online...</div>`)
             : ""}
         </div>
 
@@ -1230,10 +1230,10 @@ function render(){
           <input id="gal-bjm-${x.id}" type="file" accept="image/*" class="hidden"
                  onchange="takePhoto(event,'${x.id}','bjm')">
           ${x.photoBjm ? (x.photoBjmStatus==="uploading"
-            ? `<div class="photo-status uploading">⏫ Mengupload foto...</div>`
+            ? `<div class="photo-status uploading">⏫ Menyimpan online...</div>`
             : x.photoBjmOnline
               ? `<div class="photo-status online">✓ Tersimpan online</div>`
-              : `<div class="photo-status pending">Belum tersimpan online <button type="button" onclick="uploadPhotoOnline(event,'${x.id}','bjm')">UPLOAD ULANG</button></div>`)
+              : `<div class="photo-status pending">Menunggu sinkronisasi online...</div>`)
             : ""}
         </div>
         </div>
@@ -1247,7 +1247,7 @@ function compressImage(file){
     reader.onload=()=>{
       const img=new Image();
       img.onload=()=>{
-        const maxSide=1100;
+        const maxSide=900;
         let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
         const scale=Math.min(1,maxSide/Math.max(w,h));
         w=Math.max(1,Math.round(w*scale));h=Math.max(1,Math.round(h*scale));
@@ -1257,7 +1257,7 @@ function compressImage(file){
         let q=.70, out="";
         for(let i=0;i<6;i++){
           out=canvas.toDataURL("image/jpeg",q);
-          if(out.length<=380000)break;
+          if(out.length<=220000)break;
           q-=.07;
         }
         resolve(out);
@@ -1266,6 +1266,66 @@ function compressImage(file){
     };
     reader.onerror=reject;reader.readAsDataURL(file);
   });
+}
+
+const PHOTO_QUEUE_KEY="checklist_prn_pending_photos_v2";
+let pendingPhotoUploads={};
+try{
+  const raw=JSON.parse(localStorage.getItem(PHOTO_QUEUE_KEY)||"{}");
+  if(raw && typeof raw==="object") pendingPhotoUploads=raw;
+}catch(e){}
+
+function savePhotoQueue(){
+  localStorage.setItem(PHOTO_QUEUE_KEY,JSON.stringify(pendingPhotoUploads));
+}
+
+function photoParts(type){
+  return {
+    field:type==="cabang"?"photoCabang":(type==="terima"?"photoTerimaBjm":"photoBjm"),
+    status:type==="cabang"?"photoCabangStatus":(type==="terima"?"photoTerimaBjmStatus":"photoBjmStatus"),
+    online:type==="cabang"?"photoCabangOnline":(type==="terima"?"photoTerimaBjmOnline":"photoBjmOnline")
+  };
+}
+
+async function retryPendingPhotoUploads(){
+  const keys=Object.keys(pendingPhotoUploads);
+  if(!keys.length) return;
+  if(typeof window.__firebaseUploadPhotoToRTDB!=="function") return;
+
+  for(const key of keys){
+    const [id,type]=key.split("|");
+    const x=data.find(a=>a.id===id);
+    const parts=photoParts(type);
+    const photo=x?.[parts.field] || pendingPhotoUploads[key]?.photo;
+    if(!x || !photo) {
+      delete pendingPhotoUploads[key];
+      continue;
+    }
+
+    try{
+      x[parts.status]="uploading";
+      x[parts.online]=false;
+      save();
+      render();
+
+      await window.__firebaseUploadPhotoToRTDB(id,type,photo);
+
+      x[parts.status]="online";
+      x[parts.online]=true;
+      delete pendingPhotoUploads[key];
+      savePhotoQueue();
+      save();
+      render();
+      toast("✓ Foto tersimpan online");
+    }catch(err){
+      console.error("Retry foto:",err);
+      x[parts.status]="pending";
+      x[parts.online]=false;
+      save();
+      render();
+    }
+  }
+  savePhotoQueue();
 }
 
 window.takePhoto=async function(event,id,type){
@@ -1278,37 +1338,19 @@ window.takePhoto=async function(event,id,type){
     const x=data.find(a=>a.id===id);
     if(!x)return;
 
-    const field=type==="cabang"?"photoCabang":(type==="terima"?"photoTerimaBjm":"photoBjm");
-    const statusField=type==="cabang"?"photoCabangStatus":(type==="terima"?"photoTerimaBjmStatus":"photoBjmStatus");
-    const onlineField=type==="cabang"?"photoCabangOnline":(type==="terima"?"photoTerimaBjmOnline":"photoBjmOnline");
+    const parts=photoParts(type);
+    x[parts.field]=photo;
+    x[parts.status]="uploading";
+    x[parts.online]=false;
 
-    // Show preview immediately, then upload automatically.
-    x[field]=photo;
-    x[statusField]="uploading";
-    x[onlineField]=false;
+    pendingPhotoUploads[id+"|"+type]={photo};
+    savePhotoQueue();
     save();
     render();
 
-    try{
-      if(typeof window.__firebaseUploadPhotoToRTDB!=="function"){
-        throw new Error("Firebase upload belum siap");
-      }
-
-      await window.__firebaseUploadPhotoToRTDB(id,type,photo);
-
-      x[statusField]="online";
-      x[onlineField]=true;
-      save();
-      render();
-      toast("✓ Foto tersimpan online");
-    }catch(uploadErr){
-      console.error("Auto upload foto:",uploadErr);
-      x[statusField]="pending";
-      x[onlineField]=false;
-      save();
-      render();
-      toast("Foto tersimpan di HP, belum online");
-    }
+    // Upload automatically; if Firebase isn't ready or is temporarily unavailable,
+    // leave it queued and retry in the background.
+    retryPendingPhotoUploads();
   }catch(e){
     console.error(e);
     toast("Foto gagal diproses");
@@ -1316,45 +1358,7 @@ window.takePhoto=async function(event,id,type){
   event.target.value="";
 };
 
-window.uploadPhotoOnline=async function(evt,id,type){
-  evt?.preventDefault?.();
-  evt?.stopPropagation?.();
 
-  const x=data.find(a=>a.id===id);
-  if(!x)return;
-
-  const field=type==="cabang"?"photoCabang":(type==="terima"?"photoTerimaBjm":"photoBjm");
-  const statusField=type==="cabang"?"photoCabangStatus":(type==="terima"?"photoTerimaBjmStatus":"photoBjmStatus");
-  const onlineField=type==="cabang"?"photoCabangOnline":(type==="terima"?"photoTerimaBjmOnline":"photoBjmOnline");
-
-  if(!x[field]){
-    toast("Belum ada foto");
-    return;
-  }
-
-  x[statusField]="uploading";
-  save();
-  render();
-
-  try{
-    if(typeof window.__firebaseUploadPhotoToRTDB!=="function"){
-      throw new Error("Firebase upload belum siap");
-    }
-    await window.__firebaseUploadPhotoToRTDB(id,type,x[field]);
-    x[statusField]="online";
-    x[onlineField]=true;
-    save();
-    render();
-    toast("✓ Foto berhasil tersimpan online");
-  }catch(err){
-    console.error("Upload ulang foto:",err);
-    x[statusField]="pending";
-    x[onlineField]=false;
-    save();
-    render();
-    toast("Upload foto gagal");
-  }
-};
 
 window.viewPhoto=function(id,type){
   const x=data.find(a=>a.id===id);
@@ -1760,7 +1764,10 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
     onValue(ref(db,'.info/connected'),snap=>{
       const online=!!snap.val();
       setOnlineUI(online,online?'Live Sync tersambung':'Menunggu koneksi');
-      if(online) flushPendingDeletes();
+      if(online){
+        flushPendingDeletes();
+        setTimeout(()=>retryPendingPhotoUploads(),300);
+      }
     });
 
     onValue(ref(db,DB_PATH),async snapshot=>{
@@ -1777,6 +1784,20 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
 
       hydrating=true;
       data=remote;
+
+      // Preserve locally queued photos until they are confirmed online.
+      Object.keys(pendingPhotoUploads).forEach(key=>{
+        const [id,type]=key.split("|");
+        const localPhoto=pendingPhotoUploads[key]?.photo;
+        const item=data.find(a=>a.id===id);
+        if(item && localPhoto){
+          const parts=photoParts(type);
+          item[parts.field]=localPhoto;
+          item[parts.status]="pending";
+          item[parts.online]=false;
+        }
+      });
+
       localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
       hydrating=false;
       try{render();}catch(e){console.error(e)}
@@ -1800,20 +1821,28 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
 })();
 </script>
 
-
-
-<script id="mcode-max12-guard">
+<script id="mcode-max15-js">
 (function(){
   const input=document.getElementById("mCode");
+  const counter=document.getElementById("mCodeCounter");
   if(!input) return;
+
   const sync=()=>{
     if(input.value.length>12) input.value=input.value.slice(0,12);
+    if(counter) counter.textContent=input.value.length+"/15";
   };
+
   input.maxLength=12;
   input.addEventListener("input",sync);
   input.addEventListener("paste",()=>setTimeout(sync,0));
   sync();
 })();
+</script>
+
+<script id="photo-auto-retry-loop">
+setInterval(()=>{
+  try{ retryPendingPhotoUploads(); }catch(e){ console.error(e); }
+},5000);
 </script>
 </body>
 </html>
