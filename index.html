@@ -591,55 +591,110 @@ body{font-size:14px;color:var(--ink)}
 }
 </style>
 
-<style id="menu-overlay-fix">
-/* Menu 3-titik harus keluar dari batas kartu, bukan terpotong. */
-.shipment{
-  overflow:visible!important;
-  position:relative!important;
+<style id="photo-camera-gallery-mobile">
+.photo-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:8px;
 }
-.shipment.menu-open{
-  z-index:1000!important;
+.photo-actions .camera-btn,
+.photo-actions .gallery-btn{
+  width:100%;
+  min-height:46px;
+  margin-top:0!important;
 }
+.gallery-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  box-sizing:border-box;
+  padding:0 12px;
+  border-radius:13px;
+  border:1px solid #c9d8eb;
+  background:#eef4fb;
+  color:#1d5d9b;
+  font-size:14px;
+  font-weight:900;
+  line-height:1;
+  cursor:pointer;
+  text-align:center;
+}
+.gallery-btn.secondary{
+  background:#f4f7fb;
+  color:#315f89;
+}
+.gallery-btn svg{
+  width:17px;
+  height:17px;
+  flex:0 0 auto;
+}
+@media(max-width:380px){
+  .photo-actions{grid-template-columns:1fr;}
+}
+</style>
+
+<style id="font-max-15-final">
+.name-capsule,
+.shipment .name-capsule{
+  font-size:15px !important;
+}
+.shipment .status{
+  font-size:12px !important;
+}
+.tabs .tab{
+  font-size:15px !important;
+}
+.tabs .tab .tab-count{
+  font-size:13px !important;
+}
+</style>
+
+<style id="delete-menu-final-fix">
+/* Menu hapus selalu tampil di atas kartu/section lain dan tidak terpotong. */.shipment-menu.open{
+  display:block!important;
+}
+</style>
+
+<style id="delete-menu-compact-final">
 .shipment-menu{
-  z-index:9999!important;
-  right:0!important;
-  top:calc(100% + 7px)!important;
-  min-width:185px!important;
-  padding:7px!important;
-  border:1px solid #d9e2ef!important;
-  border-radius:15px!important;
+  position:fixed!important;
+  z-index:2147483647!important;
+  display:none!important;
+  width:max-content!important;
+  min-width:0!important;
+  max-width:210px!important;
+  padding:5px!important;
+  box-sizing:border-box!important;
   background:#fff!important;
-  box-shadow:0 16px 34px rgba(15,23,42,.20),0 3px 8px rgba(15,23,42,.08)!important;
+  border:1px solid #dbe4ef!important;
+  border-radius:13px!important;
+  box-shadow:0 12px 28px rgba(15,23,42,.18)!important;
 }
 .shipment-menu.open{
   display:block!important;
 }
 .delete-menu-btn{
-  min-height:43px!important;
-  font-size:14px!important;
+  width:auto!important;
+  min-width:0!important;
+  min-height:40px!important;
+  padding:9px 12px!important;
+  white-space:nowrap!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  border:0!important;
+  border-radius:9px!important;
+  background:transparent!important;
+  color:#b42318!important;
+  font-size:13px!important;
   font-weight:900!important;
 }
-</style>
-
-<style id="photo-sync-fallback-note">
-.firebase-photo-fallback-note{
-  margin-top:4px;
-  font-size:10px;
-  color:#64748b;
-}
-</style>
-<style id="photo-upload-explicit-ui">
-.upload-photo-btn{
-  width:100%;margin-top:8px;min-height:46px;border:0;border-radius:13px;
-  background:linear-gradient(135deg,#174b83,#0e66d8);color:#fff;
-  font-size:14px;font-weight:900;letter-spacing:.2px;cursor:pointer;
-  box-shadow:0 5px 12px rgba(14,102,216,.18);
-}
-.upload-photo-btn:disabled{opacity:.7;cursor:wait}
-.photo-online-ok{
-  margin-top:8px;padding:10px 12px;border-radius:12px;
-  background:#e7f7ed;border:1px solid #b8dfc4;color:#197044;
-  font-size:12px;font-weight:900;text-align:center;
+.delete-menu-btn svg{
+  width:16px!important;
+  height:16px!important;
+  flex:0 0 auto!important;
 }
 </style>
 </head>
@@ -742,7 +797,7 @@ body{font-size:14px;color:var(--ink)}
     </div>
     <div class="field">
       <label>NOMOR PACKING / REFERENSI</label>
-      <input id="mCode" class="date-input" placeholder="Masukkan nomor packing">
+      <input id="mCode" class="date-input" placeholder="Contoh: Kiriman 1 Pagi">
     </div>
     <div class="field">
       <label>CATATAN</label>
@@ -963,15 +1018,21 @@ function render(){
               ? `<img src="${x.photoCabang}" onclick="event.stopPropagation();viewPhoto('${x.id}','cabang')" alt="Foto Cabang">`
               : `<div class="no-photo">Belum ada foto dari cabang</div>`}
           </div>
-          <label class="camera-btn" for="cam-cabang-${x.id}" onclick="event.stopPropagation()">
-            ${x.photoCabang?"Ambil Foto Lagi":"Ambil Foto Packing"}
-          </label>
+          <div class="photo-actions">
+            <label class="camera-btn" for="cam-cabang-${x.id}" onclick="event.stopPropagation()">
+              ${x.photoCabang?"Ambil Foto Lagi":"Ambil Foto Packing"}
+            </label>
+            <label class="gallery-btn" for="gal-cabang-${x.id}" onclick="event.stopPropagation()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+              </svg>
+              Pilih dari HP
+            </label>
+          </div>
           <input id="cam-cabang-${x.id}" type="file" accept="image/*" capture="environment" class="hidden"
                  onchange="takePhoto(event,'${x.id}','cabang')">
-          ${x.photoCabang ? (x.photoCabangOnline
-            ? `<div class="photo-online-ok">✓ Tersimpan online</div>`
-            : `<button type="button" class="upload-photo-btn" onclick="uploadPhotoOnline(event,'${x.id}','cabang')">UPLOAD FOTO ONLINE</button>`)
-            : ""}
+          <input id="gal-cabang-${x.id}" type="file" accept="image/*" class="hidden"
+                 onchange="takePhoto(event,'${x.id}','cabang')">
         </div>
 
         <div class="section">
@@ -1004,15 +1065,21 @@ function render(){
               ? `<img src="${x.photoTerimaBjm}" onclick="event.stopPropagation();viewPhoto('${x.id}','terima')" alt="Foto Penerimaan BJM">`
               : `<div class="no-photo">Belum ada foto penerimaan BJM</div>`}
           </div>
-          <label class="camera-btn secondary" for="cam-terima-${x.id}" onclick="event.stopPropagation()">
-            ${x.photoTerimaBjm?"Ambil Foto Lagi":"Ambil Foto Penerimaan"}
-          </label>
+          <div class="photo-actions">
+            <label class="camera-btn secondary" for="cam-terima-${x.id}" onclick="event.stopPropagation()">
+              ${x.photoTerimaBjm?"Ambil Foto Lagi":"Ambil Foto Penerimaan"}
+            </label>
+            <label class="gallery-btn secondary" for="gal-terima-${x.id}" onclick="event.stopPropagation()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+              </svg>
+              Pilih dari HP
+            </label>
+          </div>
           <input id="cam-terima-${x.id}" type="file" accept="image/*" capture="environment" class="hidden"
                  onchange="takePhoto(event,'${x.id}','terima')">
-          ${x.photoTerimaBjm ? (x.photoTerimaBjmOnline
-            ? `<div class="photo-online-ok">✓ Tersimpan online</div>`
-            : `<button type="button" class="upload-photo-btn" onclick="uploadPhotoOnline(event,'${x.id}','terima')">UPLOAD FOTO ONLINE</button>`)
-            : ""}
+          <input id="gal-terima-${x.id}" type="file" accept="image/*" class="hidden"
+                 onchange="takePhoto(event,'${x.id}','terima')">
         </div>
 
         <div class="section">
@@ -1045,15 +1112,21 @@ function render(){
               ? `<img src="${x.photoBjm}" onclick="event.stopPropagation();viewPhoto('${x.id}','bjm')" alt="Foto BJM ke PRN">`
               : `<div class="no-photo">Belum ada foto BJM → PRN</div>`}
           </div>
-          <label class="camera-btn secondary" for="cam-bjm-${x.id}" onclick="event.stopPropagation()">
-            ${x.photoBjm?"Ambil Foto Lagi":"Ambil Foto BJM → PRN"}
-          </label>
+          <div class="photo-actions">
+            <label class="camera-btn secondary" for="cam-bjm-${x.id}" onclick="event.stopPropagation()">
+              ${x.photoBjm?"Ambil Foto Lagi":"Ambil Foto BJM → PRN"}
+            </label>
+            <label class="gallery-btn secondary" for="gal-bjm-${x.id}" onclick="event.stopPropagation()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+              </svg>
+              Pilih dari HP
+            </label>
+          </div>
           <input id="cam-bjm-${x.id}" type="file" accept="image/*" capture="environment" class="hidden"
                  onchange="takePhoto(event,'${x.id}','bjm')">
-          ${x.photoBjm ? (x.photoBjmOnline
-            ? `<div class="photo-online-ok">✓ Tersimpan online</div>`
-            : `<button type="button" class="upload-photo-btn" onclick="uploadPhotoOnline(event,'${x.id}','bjm')">UPLOAD FOTO ONLINE</button>`)
-            : ""}
+          <input id="gal-bjm-${x.id}" type="file" accept="image/*" class="hidden"
+                 onchange="takePhoto(event,'${x.id}','bjm')">
         </div>
         </div>
       </article>`;
@@ -1095,54 +1168,17 @@ window.takePhoto=async function(event,id,type){
     const photo=await compressImage(file);
     const x=data.find(a=>a.id===id);
     if(!x)return;
-
     const field=type==="cabang"?"photoCabang":(type==="terima"?"photoTerimaBjm":"photoBjm");
-    const flag=type==="cabang"?"photoCabangOnline":(type==="terima"?"photoTerimaBjmOnline":"photoBjmOnline");
-
     x[field]=photo;
-    x[flag]=false;
-    save();
-    render();
-    toast("Foto siap. Tekan UPLOAD FOTO ONLINE");
+    save();render();
+    if(window.__firebaseUploadPhotoAndPatch){
+      await window.__firebaseUploadPhotoAndPatch(id,type,photo);
+    }
+    toast(type==="cabang"?"Foto cabang tersimpan":type==="terima"?"Foto penerimaan tersimpan":"Foto BJM → PRN tersimpan");
   }catch(e){
-    console.error(e);
-    toast("Foto gagal diproses");
+    console.error(e);toast("Foto gagal diproses");
   }
   event.target.value="";
-};
-
-window.uploadPhotoOnline=async function(evt,id,type){
-  evt?.preventDefault?.();
-  evt?.stopPropagation?.();
-
-  const x=data.find(a=>a.id===id);
-  if(!x)return;
-
-  const field=type==="cabang"?"photoCabang":(type==="terima"?"photoTerimaBjm":"photoBjm");
-  const flag=type==="cabang"?"photoCabangOnline":(type==="terima"?"photoTerimaBjmOnline":"photoBjmOnline");
-  const photo=x[field];
-
-  if(!photo){
-    toast("Belum ada foto");
-    return;
-  }
-  const btn=evt.currentTarget;
-  btn.disabled=true;
-  btn.textContent="MENGUPLOAD...";
-
-  try{
-    if(!window.__firebaseUploadPhotoToRTDB) throw new Error("Firebase belum siap");
-    await window.__firebaseUploadPhotoToRTDB(id,type,photo);
-    x[flag]=true;
-    save();
-    render();
-    toast("✓ Foto berhasil tersimpan online");
-  }catch(e){
-    console.error(e);
-    btn.disabled=false;
-    btn.textContent="UPLOAD FOTO ONLINE";
-    toast("Upload gagal, coba lagi");
-  }
 };
 
 window.viewPhoto=function(id,type){
@@ -1211,16 +1247,15 @@ document.getElementById("saveBtn").onclick=()=>{
   const note=document.getElementById("mNote").value.trim();
 
   if(!date){toast("Tanggal wajib diisi");return}
-  if(!code){toast("Nomor packing wajib diisi");return}
+  if(!code){toast("Nama kiriman wajib diisi");return}
   if(data.some(x=>x.date===date && x.code.toLowerCase()===code.toLowerCase())){
-    toast("Nomor packing sudah ada pada tanggal ini");return;
+    toast("Nama kiriman sudah ada pada tanggal ini");return;
   }
 
   data.push({
     id:uid(),date,branch,code,note,
     received:false,sent:false,
     photoCabang:"",photoTerimaBjm:"",photoBjm:"",
-    photoCabangOnline:false,photoTerimaBjmOnline:false,photoBjmOnline:false,
     createdAt:Date.now()
   });
   save();
@@ -1244,20 +1279,41 @@ window.toggleShipmentMenu=function(id,btn,evt){
   evt?.preventDefault?.();
   evt?.stopPropagation?.();
 
-  document.querySelectorAll('.shipment.menu-open').forEach(card=>{
-    if(card.dataset.id!==id) card.classList.remove('menu-open');
-  });
   document.querySelectorAll('.shipment-menu.open').forEach(m=>{
     if(m.id!=='shipment-menu-'+id) m.classList.remove('open');
   });
 
   const menu=document.getElementById('shipment-menu-'+id);
-  const card=document.querySelector('.shipment[data-id="'+id+'"]');
   if(!menu) return;
 
-  const willOpen=!menu.classList.contains('open');
-  menu.classList.toggle('open',willOpen);
-  if(card) card.classList.toggle('menu-open',willOpen);
+  const opening=!menu.classList.contains('open');
+  if(opening){
+    const r=btn.getBoundingClientRect();
+    const margin=8;
+
+    // Show first so the browser can measure the actual content width.
+    menu.style.visibility='hidden';
+    menu.style.display='block';
+    const mw=Math.min(menu.scrollWidth || 185, 210);
+    const mh=menu.scrollHeight || 52;
+
+    let left=r.right-mw;
+    if(left<margin) left=margin;
+    if(left+mw>window.innerWidth-margin) left=window.innerWidth-mw-margin;
+
+    let top=r.bottom+8;
+    if(top+mh>window.innerHeight-margin){
+      top=Math.max(margin,r.top-mh-8);
+    }
+
+    menu.style.visibility='';
+    menu.style.display='';
+    menu.style.left=Math.round(left)+'px';
+    menu.style.top=Math.round(top)+'px';
+    menu.classList.add('open');
+  }else{
+    menu.classList.remove('open');
+  }
 };
 
 window.deleteShipment=async function(evt,id){
@@ -1283,7 +1339,6 @@ window.deleteShipment=async function(evt,id){
   render();
 
   document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
-  document.querySelectorAll('.shipment.menu-open').forEach(c=>c.classList.remove('menu-open'));
 
   try{
     if(window.__firebaseDeleteItem){
@@ -1304,7 +1359,12 @@ window.deleteShipment=async function(evt,id){
 
 document.addEventListener('click',()=>{
   document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
-  document.querySelectorAll('.shipment.menu-open').forEach(c=>c.classList.remove('menu-open'));
+});
+window.addEventListener('scroll',()=>{
+  document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
+},{passive:true});
+window.addEventListener('resize',()=>{
+  document.querySelectorAll('.shipment-menu.open').forEach(m=>m.classList.remove('open'));
 });
 </script>
 
@@ -1355,9 +1415,6 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
       id:x.id||uid(), date:x.date||todayKey(), branch:x.branch||'PBK', code:x.code||'', note:x.note||'',
       received:!!x.received, sent:!!x.sent,
       photoCabang:x.photoCabang||'', photoTerimaBjm:x.photoTerimaBjm||'', photoBjm:x.photoBjm||'',
-      photoCabangOnline:x.photoCabangOnline !== false && !!x.photoCabang,
-      photoTerimaBjmOnline:x.photoTerimaBjmOnline !== false && !!x.photoTerimaBjm,
-      photoBjmOnline:x.photoBjmOnline !== false && !!x.photoBjm,
       createdAt:Number(x.createdAt)||Date.now()
     };
   }
@@ -1419,65 +1476,16 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObje
     }
   };
 
-  window.__firebaseUploadPhotoToRTDB=async function(id,type,dataUrl){
-    if(!db) throw new Error('Firebase belum siap');
-    const field=type==='cabang'?'photoCabang':(type==='terima'?'photoTerimaBjm':'photoBjm');
-    const flag=type==='cabang'?'photoCabangOnline':(type==='terima'?'photoTerimaBjmOnline':'photoBjmOnline');
-
-    // The image is already compressed before upload.
-    await update(ref(db,ITEMS_PATH+'/'+id),{
-      [field]:dataUrl,
-      [flag]:true,
-      [field+'UpdatedAt']:Date.now()
-    });
-    setOnlineUI(true,'Foto tersimpan online');
-  };
-
   window.__firebaseUploadPhotoAndPatch=async function(id,type,dataUrl){
-    if(!db) throw new Error('Firebase belum siap');
+    if(!db || !storage) throw new Error('Firebase belum siap');
     const field=type==='cabang'?'photoCabang':(type==='terima'?'photoTerimaBjm':'photoBjm');
-
-    /*
-      Primary: Firebase Storage -> RTDB stores only URL.
-      Fallback: if Storage is unavailable / rules reject it, store the
-      compressed JPEG data URL directly in RTDB. This guarantees the
-      photo still syncs between devices because Realtime Database is
-      already working in this app.
-    */
-    if(storage){
-      try{
-        const storagePath=`checklist_prn/${id}/${type}.jpg`;
-        const sref=storageRef(storage,storagePath);
-        await uploadString(
-          sref,
-          dataUrl,
-          'data_url',
-          {contentType:'image/jpeg',cacheControl:'public,max-age=31536000'}
-        );
-        const url=await getDownloadURL(sref);
-
-        const local=data.find(x=>x.id===id);
-        if(local){
-          local[field]=url;
-          localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
-          render();
-        }
-        await patchItem(id,{[field]:url});
-        setOnlineUI(true,'Foto tersimpan online');
-        return;
-      }catch(storageErr){
-        console.warn('Firebase Storage gagal, pakai fallback RTDB:',storageErr);
-      }
-    }
-
-    // Fallback RTDB: data URL is already compressed by compressImage().
-    await patchItem(id,{[field]:dataUrl});
+    const storagePath=`checklist_prn/${id}/${type}.jpg`;
+    const sref=storageRef(storage,storagePath);
+    await uploadString(sref,dataUrl,'data_url',{contentType:'image/jpeg',cacheControl:'public,max-age=31536000'});
+    const url=await getDownloadURL(sref);
     const local=data.find(x=>x.id===id);
-    if(local){
-      local[field]=dataUrl;
-      localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
-      render();
-    }
+    if(local){ local[field]=url; localStorage.setItem(STORAGE_KEY,JSON.stringify(data)); render(); }
+    await patchItem(id,{[field]:url});
     setOnlineUI(true,'Foto tersimpan online');
   };
 
